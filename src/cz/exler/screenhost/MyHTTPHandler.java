@@ -8,6 +8,8 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * MyHTTPHandler is simple implementation of HttpHandler
@@ -21,6 +23,7 @@ import java.nio.file.Paths;
  * </ul>
  * Also handles recieved Http requests. The handling is done
  * based on recieved URI. (see <a href="#getByteResponse">getByteResponse</a>)
+ * Provides functionality for counting active connections.
  */
 public class MyHTTPHandler implements HttpHandler {
     /**
@@ -43,6 +46,8 @@ public class MyHTTPHandler implements HttpHandler {
         m_screenSource = new ScreenShotter();
 
         m_chatStorage = new ChatStorage();
+
+        m_userHistory = new HashMap<Integer, Long>();
     }
 
     /**
@@ -58,12 +63,29 @@ public class MyHTTPHandler implements HttpHandler {
     @Override
     public void handle(HttpExchange t) throws IOException {
         byte[] response = getByteResponse(t.getRequestURI().getPath());
+        m_userHistory.put(t.getRemoteAddress().hashCode(),System.currentTimeMillis());
         t.sendResponseHeaders(200, response.length);
         OutputStream os = t.getResponseBody();
         os.write(response);
         os.close();
     }
 
+    /**
+     * Count number of clients that connected during the last
+     * defined time period.
+     *
+     * @return number of recently connected clients
+     */
+    public int getConnectedClientCount(){
+        int clientCount = 0;
+        long threshold = System.currentTimeMillis() - 3000; // Timeout for counting user inactive is 1,5 s
+        for (Map.Entry<Integer, Long> user : m_userHistory.entrySet()) {
+            if(user.getValue() < threshold){
+                ++clientCount;
+            }
+        }
+        return clientCount;
+    }
     // Private
     /**
      * Handles URI passed in requestURI and based on its
@@ -110,4 +132,11 @@ public class MyHTTPHandler implements HttpHandler {
     private String m_siteResponse = "<html><body>ERROR</body></html>";
     private ScreenShotter m_screenSource = null;
     private ChatStorage m_chatStorage = null;
+
+    /**
+     * Map for storing latest client connections.
+     * (Used for counting active users)
+     */
+    private Map<Integer, Long> m_userHistory;
+
 }
