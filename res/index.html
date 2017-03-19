@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<script type="text/javascript">
+/**
+ * Helping structure used in escapeHtml()
+ * Contains HTML sensitive characters and their escaped representation
+ */
+var entityMap = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+  '/': '&#x2F;',
+  '`': '&#x60;',
+  '=': '&#x3D;'
+};
+
+/**
+ * Escapes all HTML characters listed in entityMap
+ * and replaces newlines with '<br />'
+ *
+ * @param  string  a string of characters that needs to be escaped
+ * @return         the escaped string
+ * @see            entityMap for list of escaped HTML characters
+ */
+function escapeHtml (string) {
+  var str = String(string).replace(/[&<>"'`=\/]/g, function (s) {
+    return entityMap[s];
+  });
+  return str.replace(/(?:\r\n|\r|\n)/g, '<br />');
+}
+
+/**
+ * Ensures updating of the screen image every 1000ms.
+ * <p>
+ * Uses Math.random() to alter image source URI to workaround browser
+ * cash.
+ */
+function reloadScreen() {
+    var screenImg = document.getElementById("screenID");
+    if(screenImg){
+       screenImg.src = "/screenHost/screen.jpg?seed=" + Math.random();
+    }
+    setTimeout("reloadScreen();", 1000);
+}
+
+/**
+ * Updates chat area every 300ms.
+ * <p>
+ * Uses XMLHttpRequest to query for chat records.
+ * Decodes received text data from base64 and formats them
+ * into HTML with following layout per message:
+ * <b>[name]:</b> [message]
+ * The resulting HTML is embeded into chat area div with id:chatAreaID
+ */
+function reloadChat(){
+    var chatDiv = document.getElementById("chatAreaID");
+    if(chatDiv){
+        var xhttp = new XMLHttpRequest();
+        xhttp.onreadystatechange = function() {
+            if (this.readyState == 4 && this.status == 200){
+                var chat = JSON.parse(this.responseText);
+                var chatHtml = "";
+                for (r in chat.chatRecords) {
+                    chatHtml += "<p><b>" +  window.atob(chat.chatRecords[r].nameB64) + ":</b> ";
+                    chatHtml += window.atob(chat.chatRecords[r].msgB64) + "</p>";
+                }
+                chatDiv.innerHTML = chatHtml;
+                chatDiv.scrollTop = chatDiv.scrollHeight;
+            }
+        };
+        xhttp.open("GET", "/screenHost/chat", true);
+        xhttp.send();
+    }
+    setTimeout("reloadChat();", 300);
+}
+
+
+/**
+ * Handles user input related to sending chat message.
+ * <p>
+ * Encodes name (got from input text id:nameID) and
+ * message (got from input text id:messageTextID) into base64
+ * and sends them using XMLHttpRequest. The data are passed
+ * as a part of an URI in XMLHttpRequest and are "/" separated.
+ * When request is sent, input message area (id:messageTextID)
+ * is cleared and focus is set to it.
+ */
+function checkAndSendChatMessage(){
+    var chatName = document.getElementById("nameID");
+    var chatMessageText = document.getElementById("messageTextID");
+    if(chatName && chatMessageText){
+        var name = escapeHtml(chatName.value);
+        var text = escapeHtml(chatMessageText.value);
+        var checkSuccesfull = true;
+        if(name == ""){
+            alert("No chat name set");
+            checkSuccesfull = false;
+        }
+        if(text == ""){
+            alert("No chat message set");
+            checkSuccesfull = false;
+        }
+        if(checkSuccesfull){
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 || this.status == 200 || this.responseText == "OK"){
+                    // Message sent
+                }
+            };
+            xhttp.open("GET", "/screenHost/chat/" + window.btoa(name) + "/" + window.btoa(text), true);
+            xhttp.send();
+
+            chatMessageText.value = "";
+            text.focus();
+        }
+    }
+}
+
+/**
+ * Initiates periodical refreshing of screen and chat
+ * areas. It is called when page is loaded.
+ * <p>
+ * See description of reloadScreen() and reloadChat()
+ * for more detail.
+ */
+function uponLoad(){
+    reloadScreen();
+    reloadChat();
+}
+</script>
+<head>
+    <meta charset="UTF-8">
+    <title>Screen Host</title>
+</head>
+<body onload = uponLoad()>
+<div width="500px"/>
+<table style="width:100%;border:0;">
+    <tr>
+    <!-- Screen -->
+    <td style="width:80%;"><img id="screenID" style="width:100%;" src="/screenHost/screen.jpg"></td>
+    <!-- Chat -->
+    <td style="width:20%;valign:top;">
+
+        <div id="chatAreaID" style="overflow-y:scroll;width:100%;height:400px;"></div>
+        <form>
+            <b>Name:</b> <input id="nameID" type="text" /><br />
+            <b>Message:</b><br /><textarea id="messageTextID" style="width:95%;resize:none;"></textarea><br />
+            <input id="sendButtonID" type="button" value="Send" onclick="checkAndSendChatMessage()"/><br />
+        </form>
+    </td>
+    </tr>
+</table>
+</body>
+</html>
